@@ -179,7 +179,6 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
      * and reply using fuse_reply_buf.
      */
     std::string buf;
-    printf("[fuse read]\n");
     int res = yfs->read(ino, size,off,buf);
     if(res != yfs_client::OK)
     {
@@ -187,7 +186,8 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
         fuse_reply_err(req,EIO);
         return;
     }
-    printf("[i] read_read content: %s size: %d id:\n", buf.data(), buf.size(),ino);
+    //std::cout<< " off " << off << " size: "<<buf.size()<<" id: " << ino <<std::endl;
+    //printf("[fuse read] content: %s off %d size: %d id:%d\n", buf, off,buf.size(),ino);
     fuse_reply_buf(req, buf.c_str(), buf.size());
 
 }
@@ -219,7 +219,8 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
      * and reply the length of bytes_written using fuse_reply_write.
      */
     size_t sz;
-    printf("[fuse write] size %d\n",size);
+    if(off+size>=10000)
+        printf("[fuse write] size %d off %d id %d\n",size,off,ino);
     //std::cout<<"[fuse write] "+str +"id "<< ino << std::endl;
     int res = yfs->write(ino, size, off, buf, sz);
     if(res != yfs_client::OK)
@@ -343,12 +344,12 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
     int res = yfs->lookup(parent,name,found,ino_out);
     if(res != yfs_client::OK)
     {
-        printf("@@@@@@@@@@@No dir exist!\n");
+        //printf("@@@@@@@@@@@No dir exist!\n");
         fuse_reply_err(req,ENOENT);
     }
     if(found == false)
     {
-        printf("@@@@@@@@@@@The file doesn't found\n");
+        //printf("@@@@@@@@@@@The file doesn't found\n");
         fuse_reply_err(req,ENOENT);
         printf("%%%%%%%%%%fuseerr\n");
         return;

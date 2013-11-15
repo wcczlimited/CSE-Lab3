@@ -3,7 +3,6 @@
 #include <iostream>
 #include <cstdio>
 // disk layer -----------------------------------------
-
 disk::disk()
 {
     bzero(blocks, sizeof(blocks));
@@ -131,16 +130,13 @@ block_manager::write_block(uint32_t id, const char *buf)
 inode_manager::inode_manager()
 {
     bm = new block_manager();
-    uint32_t root_dir = alloc_inode(extent_protocol::T_DIR);
+    uint32_t root_dir = build_root(extent_protocol::T_DIR);
+
     if (root_dir != 1)
     {
         printf("\tim: error! alloc first inode %d, should be 1\n", root_dir);
         exit(0);
     }
-    for(int i=0; i<=INODE_NUM; i++)
-        inodes[i]=0;
-    inode_cur = 1;
-    pthread_mutex_init(&mutex,NULL);
 }
 
 void
@@ -160,11 +156,34 @@ inode_manager::setmtime(uint32_t inum)
     put_inode(inum,node);
 }
 
-
-int
-inode_manager::gen_inum(uint32_t type)
+uint32_t
+inode_manager::build_root(uint32_t type)
 {
-        return (int)((double(rand())/RAND_MAX)*INODE_NUM)+1;
+    timespec time;
+    if (clock_gettime(CLOCK_REALTIME, &time)!=0)
+        return 0;
+    inode *node = new inode();
+    int i = 1;
+    do
+    {
+        inode* temp = get_inode(i);
+        if( temp == NULL)
+        {
+            node->nblock = 0;
+            node->size = 0;
+            node->type = type;
+            node->atime = time.tv_nsec;
+            node->ctime = time.tv_nsec;
+            node->mtime = time.tv_nsec;
+            put_inode(i, node);
+            delete node;
+            return i;
+        }
+        i++;
+    }
+    while(i<INODE_NUM);
+    delete node;
+    return 0;
 }
 
 /* Create a new file.
@@ -177,21 +196,20 @@ inode_manager::alloc_inode(uint32_t type)
      * note: the normal inode block should begin from the 2nd inode block.
      * the 1st is used for root_dir, see inode_manager::inode_manager().
      */
-     //std::cout << "[inode_manager alloc_inode]"<< std::endl;
+    //std::cout << "[inode_manager alloc_inode]"<< std::endl;
     //fprintf(stdout, "[inode_manager alloc_inode]\n");
     timespec time;
     if (clock_gettime(CLOCK_REALTIME, &time)!=0)
         return 0;
     inode *node = new inode();
-    int i = 1;
-    do
+    while(true)
     {
+        int i =  (int)((double(rand())/RAND_MAX)*INODE_NUM)+1;
+        if(i%INODE_NUM == 0)
+            i = 2;
         inode* temp = get_inode(i);
-        if(temp!=NULL)
-            inodes[i]=1;
-        if(temp == NULL)
+        if( temp == NULL)
         {
-            ScopedLock ml(&mutex);
             node->nblock = 0;
             node->size = 0;
             node->type = type;
@@ -199,31 +217,8 @@ inode_manager::alloc_inode(uint32_t type)
             node->ctime = time.tv_nsec;
             node->mtime = time.tv_nsec;
             put_inode(i, node);
-            inodes[i]=1;
             delete node;
             return i;
-        }
-        i++;
-    }
-    while(i<3);
-    while(true)
-    {
-        inode_cur = gen_inum(type);
-        if(inode_cur% INODE_NUM==0)
-            inode_cur = 2;
-        if(inodes[inode_cur]==0)//temp == NULL)
-        {
-            ScopedLock ml(&mutex);
-            node->nblock = 0;
-            node->size = 0;
-            node->type = type;
-            node->atime = time.tv_nsec;
-            node->ctime = time.tv_nsec;
-            node->mtime = time.tv_nsec;
-            put_inode(inode_cur, node);
-            inodes[inode_cur]=1;
-            delete node;
-            return inode_cur;
         }
     }
     delete node;
@@ -335,7 +330,9 @@ inode_manager::read_file(uint32_t inum, char **buf_out, int *size)
         buf += BLOCK_SIZE;
     }
     if (node->nblock <= NDIRECT)
+    {
         return;
+    }
     int indir_blockid = node->blocks[NDIRECT];
     char inblock[BLOCK_SIZE];
     bm->read_block(indir_blockid,inblock);
@@ -366,7 +363,6 @@ inode_manager::write_file(uint32_t inum, const char *buf, int size)
     if(node==NULL)
         return;
     node->mtime = time.tv_nsec;//modify time
-
     int bn_real,bn_cur;
     if(node->nblock>0)
     {
@@ -390,8 +386,11 @@ inode_manager::write_file(uint32_t inum, const char *buf, int size)
     }
     bn_real = (int)ceil((double)size/(double)BLOCK_SIZE);
     if (bm->rest() < bn_real)
+    {
         return;
+    }
     node->size = size;
+
     node->nblock = bn_real;
     bn_cur = MIN(bn_real, NDIRECT);
     for (int i = 0; i < bn_cur; i++)
@@ -424,7 +423,6 @@ inode_manager::write_file(uint32_t inum, const char *buf, int size)
     node->atime = time.tv_nsec;
     node->ctime = time.tv_nsec;
     put_inode(inum, node);
-    //setmtime(inum);
     return;
 }
 
@@ -468,6 +466,5 @@ inode_manager::remove_file(uint32_t inum)
     delete node;
     node = new inode();
     put_inode(inum, node);
-    inodes[inum]=0;
     //return;
 }

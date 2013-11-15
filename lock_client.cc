@@ -23,6 +23,7 @@ lock_client::stat(lock_protocol::lockid_t lid)
 {
   int r;
   lock_protocol::status ret = cl->call(lock_protocol::stat, cl->id(), lid, r);
+  printf("status lid %d r %d\n", lid,r);
   VERIFY (ret == lock_protocol::OK);
   return r;
 }

@@ -16,6 +16,7 @@ class extent_protocol {
     getattr,
     remove,
     create,
+    settime
   };
 
   enum types {

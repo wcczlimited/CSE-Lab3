@@ -27,9 +27,24 @@ lock_server::~lock_server()
 lock_protocol::status
 lock_server::stat(int clt, lock_protocol::lockid_t lid, int &r)
 {
-    lock_protocol::status ret = lock_protocol::OK;
     printf("stat request from clt %d\n", clt);
-    r = nacquire;
+    lock_protocol::status ret = lock_protocol::OK;
+    if (lock_owner[lid] != clt)
+    {
+        r = -1;
+        goto release;
+    }
+    else if (table_lk[lid] == FREE)
+    {
+        r = 0;
+        goto release;
+    }
+    else
+    {
+        r = lock_owner[lid];
+        goto release;
+    }
+release:
     return ret;
 }
 
@@ -37,13 +52,10 @@ lock_server::stat(int clt, lock_protocol::lockid_t lid, int &r)
 lock_protocol::status
 lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
 {
-    if(lock_owner.find(lid)!=lock_owner.end() && lock_owner[lid]==clt)
-        return lock_protocol::OK;
     lock_protocol::status ret = lock_protocol::OK;
-    printf("acquire request from clt %d\n", clt);
+    fprintf(stdout,"acquire request from clt %d\n", clt);
     locker(lid, clt);
-    lock_owner[lid] = clt;
-    printf("!!!!!!!!!!!!!!!acquire success from clt %d lockid %d\n", clt, lid);
+    //printf("!!!!!!!!!!!!!!!acquire success from clt %d lockid %d\n", clt, lid);
     r = ++nacquire;
     return ret;
 }
@@ -54,13 +66,25 @@ lock_server::release(int clt, lock_protocol::lockid_t lid, int &r)
     lock_protocol::status ret = lock_protocol::OK;
     printf("release request from clt %d\n", clt);
     pthread_mutex_lock(&mutex);
-
-    table_lk[lid] = FREE;
-    lock_owner[lid] = -1;
-    r = --nacquire;
-    //printf("[send signal] thread %d\n", clt);
-    printf("@@@@@@@@@@@@@@@release success from clt %d lockid %d\n", clt, lid);
-    pthread_cond_signal(&cv);
+    if (!is_lock_exist(lid))
+    {
+        printf("release request from clt %d for lid %llu not exist pid %d\n", clt, lid, getpid());
+        ret = lock_protocol::RPCERR;
+    }
+    else if (lock_owner[lid] != clt)
+    {
+        printf("release request from clt %d for lid %llu does not match its owner pid %d\n", clt, lid, getpid());
+        ret = lock_protocol::RPCERR;
+    }
+    else
+    {
+        lock_owner[lid] = -1;
+        table_lk[lid] = FREE;
+        r = nacquire --;
+        printf("release request from clt %d for lid %llu pid %d\n", clt, lid, getpid());
+        VERIFY(pthread_cond_signal(&cv) == 0);
+    }
+    //printf("@@@@@@@@@@@@@@@release success from clt %d lockid %d\n", clt, lid);
     pthread_mutex_unlock(&mutex);
     return ret;
 }
@@ -111,6 +135,7 @@ lock_server::new_lock(lock_protocol::lockid_t lid,int clt)
     ScopedLock ml(&scopedmutex);
     printf("[new_lock %11d] thread %d\n", lid, clt);
     table_lk[lid] = LOCKED;
+    lock_owner[lid] = clt;
 }
 
 void
@@ -119,4 +144,5 @@ lock_server::lock_lock(lock_protocol::lockid_t lid,int clt)
     ScopedLock ml(&scopedmutex);
     printf("[lock_lock %11d] thread %d\n", lid, clt);
     table_lk[lid] = LOCKED;
+    lock_owner[lid] = clt;
 }

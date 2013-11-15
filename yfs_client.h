@@ -39,9 +39,6 @@ class yfs_client {
  private:
   static std::string filename(inum);
   static inum n2i(std::string);
-  int yfs_lookup(inum, const char *, bool &, inum &);
-  int yfs_readdir(inum, std::list<dirent> &);
-  int yfs_read(inum, size_t, off_t, std::string &);
 
  public:
   yfs_client(std::string, std::string);

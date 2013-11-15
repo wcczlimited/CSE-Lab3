@@ -4,7 +4,6 @@
 #define inode_h
 
 #include <stdint.h>
-#include <pthread.h>
 #include "extent_protocol.h" // TODO: delete it
 
 #define DISK_SIZE  1024*1024*16
@@ -89,7 +88,6 @@ class inode_manager
 {
 private:
     block_manager *bm;
-    int inode_cur;
     void put_inode(uint32_t inum, struct inode *ino);
     void setattr(extent_protocol::attr &a, inode* node)
     {
@@ -100,15 +98,12 @@ private:
         a.ctime = node->ctime;
         return;
     }
-    int gen_inum(uint32_t type);
-    int inodes[INODE_NUM+1];
-    pthread_mutex_t mutex;
 public:
     inode_manager();
-    ~inode_manager();
     struct inode* get_inode(uint32_t inum);
     void setmtime(uint32_t inum);
     uint32_t alloc_inode(uint32_t type);
+    uint32_t build_root(uint32_t type);
     void free_inode(uint32_t inum);
     void read_file(uint32_t inum, char **buf, int *size);
     void write_file(uint32_t inum, const char *buf, int size);
