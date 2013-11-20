@@ -346,7 +346,6 @@ yfs_client::read(inum ino, size_t size, off_t off, std::string &data)
      * your lab2 code goes here.
      * note: read using ec->get().
      */
-
     //printf("[yfs_client read] get\n");
     if(ec->get(ino, p_extent) != extent_protocol::OK)
     {
@@ -363,6 +362,7 @@ yfs_client::read(inum ino, size_t size, off_t off, std::string &data)
     }
 
     data = p_extent.substr(off,size);
+    //fl << "off "<<off <<" size "<<size << " "<<data << endl;
 release:
     if(h<=0)
         lc->release(ino);

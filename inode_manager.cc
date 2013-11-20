@@ -76,6 +76,7 @@ block_manager::free_block(uint32_t id)
     it=using_blocks.find(id);
     if(it!=using_blocks.end())
         using_blocks.erase(it);  //delete 112;
+    add_block();
     return;
 }
 
@@ -359,6 +360,7 @@ inode_manager::write_file(uint32_t inum, const char *buf, int size)
     timespec time;
     if (clock_gettime(CLOCK_REALTIME, &time)!=0)
         return;
+
     inode *node = get_inode(inum);
     if(node==NULL)
         return;
@@ -401,7 +403,6 @@ inode_manager::write_file(uint32_t inum, const char *buf, int size)
         buf += BLOCK_SIZE;
         size -= BLOCK_SIZE;
     }
-
     if (bn_real > bn_cur)
     {
         node->blocks[NDIRECT] = bm->alloc_block();
@@ -463,8 +464,10 @@ inode_manager::remove_file(uint32_t inum)
     for (int i = 0; i < node->nblock && i < NDIRECT; i++)
         bm->free_block(node->blocks[i]);
     //put a new inode to the original place
-    delete node;
-    node = new inode();
+    //delete node;
+    //node = new inode();
+    memset(node,0,sizeof(struct inode));
     put_inode(inum, node);
-    //return;
+    delete node;
+    return;
 }

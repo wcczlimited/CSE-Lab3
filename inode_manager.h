@@ -45,6 +45,7 @@ public:
     struct superblock sb;
     unsigned int rest(){return rest_block;}
     void minus_block(){rest_block--;return;}
+    void add_block(){rest_block++;return;}
     uint32_t alloc_block();
     void free_block(uint32_t id);
     void read_block(uint32_t id, char *buf);
